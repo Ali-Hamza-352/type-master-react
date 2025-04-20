@@ -7,6 +7,7 @@ import Layout from "./components/Layout";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Studying from "./pages/Studying";
+import LessonContent from "./pages/LessonContent";
 
 const queryClient = new QueryClient();
 
@@ -20,7 +21,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/studying" element={<Studying />} />
-            <Route path="/studying/lesson/:lessonId" element={<div>Lesson Content</div>} />
+            <Route path="/studying/lesson/:lessonId" element={<LessonContent />} />
             <Route path="/typing-meter" element={<div>Typing Meter</div>} />
             <Route path="/custom-review" element={<div>Custom Review</div>} />
             <Route path="/typing-test" element={<div>Typing Test</div>} />
