@@ -1,73 +1,319 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { VirtualKeyboard } from './VirtualKeyboard';
+import { 
+  keyboardMapping, 
+  Finger, 
+  generateWordList,
+  calculateWPM,
+  calculateAccuracy
+} from '@/utils/keyboardUtils';
+import { Check, X, Keyboard } from 'lucide-react';
 
 interface TypingInterfaceProps {
-  onComplete: (stats: { accuracy: number; wpm: number }) => void;
+  onComplete: (stats: { accuracy: number; wpm: number; mistakes: number }) => void;
+  lessonDuration?: number; // in seconds, defaults to 60
 }
 
-export const TypingInterface = ({ onComplete }: TypingInterfaceProps) => {
-  const [currentWord, setCurrentWord] = useState("as");
-  const [userInput, setUserInput] = useState("");
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [isActive, setIsActive] = useState(false);
+interface Mistake {
+  index: number;
+  expected: string;
+  actual: string;
+}
 
+export const TypingInterface = ({ 
+  onComplete, 
+  lessonDuration = 60 
+}: TypingInterfaceProps) => {
+  // Text to type and user input state
+  const [text, setText] = useState("");
+  const [userInput, setUserInput] = useState("");
+  const [currentPosition, setCurrentPosition] = useState(0);
+  const [mistakes, setMistakes] = useState<Mistake[]>([]);
+  const [isCorrect, setIsCorrect] = useState(true);
+  
+  // Timer and tracking state
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [isActive, setIsActive] = useState(false);
+  const [wpm, setWpm] = useState(0);
+  const [accuracy, setAccuracy] = useState(100);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  
+  // Virtual keyboard state
+  const [currentKey, setCurrentKey] = useState('');
+  const [highlightedFinger, setHighlightedFinger] = useState<Finger | null>(null);
+  
+  // Refs
+  const inputRef = useRef<HTMLInputElement>(null);
+  const intervalRef = useRef<number | null>(null);
+
+  // Initialize text on component mount
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (!isActive) return;
+    setText(generateWordList(25));
+  }, []);
+  
+  // Update keyboard highlight on text or position change
+  useEffect(() => {
+    if (text && currentPosition < text.length) {
+      const nextKey = text[currentPosition].toLowerCase();
+      setCurrentKey(nextKey);
       
-      if (e.key === ' ') {
-        if (userInput === currentWord) {
-          // Word completed correctly
-          setUserInput("");
-          // For demo, we'll just repeat the same word
-          setCurrentWord("as");
-        }
+      const keyInfo = keyboardMapping[nextKey];
+      if (keyInfo) {
+        setHighlightedFinger(keyInfo.finger);
       } else {
-        setUserInput((prev) => prev + e.key);
+        setHighlightedFinger(null);
+      }
+    }
+  }, [text, currentPosition]);
+  
+  // Start timer when typing starts
+  useEffect(() => {
+    if (isActive && !intervalRef.current) {
+      setStartTime(Date.now());
+      intervalRef.current = window.setInterval(() => {
+        setTimeElapsed(prev => {
+          const newTime = prev + 1;
+          
+          // Calculate live stats every second
+          const correctChars = currentPosition - mistakes.length;
+          setWpm(calculateWPM(correctChars, newTime));
+          setAccuracy(calculateAccuracy(correctChars, currentPosition));
+          
+          // Check if time is up
+          if (newTime >= lessonDuration) {
+            completeTyping();
+          }
+          
+          return newTime;
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
-
+  }, [isActive, currentPosition, mistakes.length, lessonDuration]);
+  
+  // Handle keypress events
+  const handleKeyPress = useCallback((event: KeyboardEvent) => {
+    if (!isActive) return;
+    
+    if (currentPosition >= text.length) {
+      // Typing complete
+      completeTyping();
+      return;
+    }
+    
+    const expected = text[currentPosition];
+    const typed = event.key;
+    
+    // Skip non-printable characters except space
+    if ((typed.length !== 1 && typed !== ' ') || event.metaKey || event.ctrlKey) {
+      return;
+    }
+    
+    // Prevent default behavior for space to avoid page scrolling
+    if (typed === ' ') {
+      event.preventDefault();
+    }
+    
+    if (typed === expected) {
+      // Correct key
+      setUserInput(prev => prev + typed);
+      setCurrentPosition(prev => prev + 1);
+      setIsCorrect(true);
+    } else {
+      // Mistake
+      setMistakes(prev => [
+        ...prev, 
+        { index: currentPosition, expected, actual: typed }
+      ]);
+      setUserInput(prev => prev + typed);
+      setCurrentPosition(prev => prev + 1);
+      setIsCorrect(false);
+    }
+  }, [isActive, text, currentPosition]);
+  
+  // Register and unregister keypress event listener
+  useEffect(() => {
     window.addEventListener('keypress', handleKeyPress);
-    return () => window.removeEventListener('keypress', handleKeyPress);
-  }, [currentWord, userInput, isActive]);
-
+    return () => {
+      window.removeEventListener('keypress', handleKeyPress);
+    };
+  }, [handleKeyPress]);
+  
+  // Focus input field when active
+  useEffect(() => {
+    if (isActive && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isActive]);
+  
+  // Start typing
   const startTyping = () => {
     setIsActive(true);
+    setUserInput("");
+    setCurrentPosition(0);
+    setMistakes([]);
+    setTimeElapsed(0);
+    setWpm(0);
+    setAccuracy(100);
     setStartTime(Date.now());
+  };
+  
+  // Complete typing
+  const completeTyping = () => {
+    setIsActive(false);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    // Calculate final stats
+    const finalAccuracy = calculateAccuracy(currentPosition - mistakes.length, currentPosition);
+    const finalWpm = calculateWPM(currentPosition - mistakes.length, timeElapsed);
+    
+    // Call onComplete with results
+    onComplete({
+      accuracy: finalAccuracy,
+      wpm: finalWpm,
+      mistakes: mistakes.length
+    });
+  };
+  
+  // Render highlighted text with mistakes
+  const renderText = () => {
+    if (!text) return null;
+    
+    return (
+      <div className="text-lg text-left space-y-2 my-4">
+        <div className="font-medium mb-2">Type the text below:</div>
+        <div className="p-4 bg-gray-50 rounded-lg border shadow-sm relative">
+          {text.split('').map((char, index) => {
+            const isCurrent = index === currentPosition;
+            const isTyped = index < currentPosition;
+            const mistake = mistakes.find(m => m.index === index);
+            const isCorrect = isTyped && !mistake;
+            
+            return (
+              <span 
+                key={index}
+                className={`
+                  ${isCurrent ? 'bg-blue-200 px-0.5 rounded-sm' : ''}
+                  ${isCorrect ? 'text-green-600' : ''}
+                  ${mistake ? 'text-red-600' : ''}
+                  ${isCurrent ? 'border-b-2 border-blue-500 animate-pulse' : ''}
+                `}
+              >
+                {char}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+  
+  // Render user input with mistakes
+  const renderUserInput = () => {
+    return (
+      <div className="text-lg text-left my-4">
+        <div className="font-medium mb-2">Your typing:</div>
+        <div className="p-4 bg-white rounded-lg border shadow-sm break-all min-h-12 relative">
+          {userInput.split('').map((char, index) => {
+            const expected = text[index];
+            const isCorrect = char === expected;
+            
+            return (
+              <span 
+                key={index}
+                className={`${isCorrect ? 'text-green-600' : 'text-red-600'}`}
+              >
+                {char}
+              </span>
+            );
+          })}
+          {!isCorrect && <X className="absolute right-2 top-2 text-red-500 h-5 w-5" />}
+          {isCorrect && userInput.length > 0 && <Check className="absolute right-2 top-2 text-green-500 h-5 w-5" />}
+        </div>
+      </div>
+    );
+  };
+  
+  // Render stats dashboard
+  const renderStats = () => {
+    return (
+      <div className="flex justify-between items-center py-3 px-4 bg-gray-100 rounded-lg my-4">
+        <div className="text-center">
+          <div className="text-sm text-gray-600">Time</div>
+          <div className="text-xl font-mono font-bold">
+            {Math.floor((lessonDuration - timeElapsed) / 60).toString().padStart(2, '0')}:
+            {((lessonDuration - timeElapsed) % 60).toString().padStart(2, '0')}
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="text-sm text-gray-600">WPM</div>
+          <div className="text-xl font-mono font-bold">{wpm}</div>
+        </div>
+        <div className="text-center">
+          <div className="text-sm text-gray-600">Accuracy</div>
+          <div className="text-xl font-mono font-bold">{accuracy}%</div>
+        </div>
+        <div className="text-center">
+          <div className="text-sm text-gray-600">Mistakes</div>
+          <div className="text-xl font-mono font-bold">{mistakes.length}</div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <Card className="w-full max-w-3xl mx-auto">
-      <CardContent className="p-6 space-y-6">
-        <div className="text-center mb-4">
-          <p className="text-sm text-muted-foreground">Type the highlighted word and press space</p>
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardContent className="p-6 space-y-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Keyboard className="h-5 w-5 text-blue-600" />
+          <h2 className="text-xl font-semibold">Touch Typing Practice</h2>
         </div>
-
-        <div className="text-center space-x-4 text-2xl">
-          <span className={currentWord === userInput ? "text-green-500" : "text-blue-500"}>
-            {currentWord}
-          </span>
-          <span className="text-muted-foreground">{currentWord}</span>
-          <span className="text-muted-foreground">{currentWord}</span>
-        </div>
-
-        <div className="bg-gray-100 p-4 rounded-lg">
-          <img 
-            src="/lovable-uploads/f66fd634-b17b-4199-a265-0f6ccb55e494.png" 
-            alt="Keyboard Hand Position" 
-            className="w-full max-w-md mx-auto"
-          />
-        </div>
-
-        <div className="text-center">
-          {!isActive && (
+        
+        {isActive ? (
+          <>
+            {renderStats()}
+            {renderText()}
+            {renderUserInput()}
+            <VirtualKeyboard 
+              currentKey={currentKey} 
+              highlightedFinger={highlightedFinger} 
+            />
+            <input 
+              ref={inputRef}
+              type="text"
+              className="opacity-0 absolute top-0 left-0 w-0 h-0"
+              autoFocus
+            />
+          </>
+        ) : (
+          <div className="text-center py-8 space-y-6">
+            <div className="mx-auto w-32 h-32 rounded-full bg-gray-100 flex items-center justify-center">
+              <Keyboard className="h-16 w-16 text-blue-600" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold">Ready to improve your typing?</h3>
+              <p className="text-gray-600">
+                Follow the highlighted keys and use the correct fingers for each key.
+                Watch your speed and accuracy improve in real-time!
+              </p>
+            </div>
             <Button onClick={startTyping} size="lg">
-              Begin Typing (Space)
+              Begin Typing Practice
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
