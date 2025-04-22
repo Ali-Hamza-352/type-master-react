@@ -1,4 +1,3 @@
-
 // Define finger mapping for each key
 export type Finger = 'leftPinky' | 'leftRing' | 'leftMiddle' | 'leftIndex' | 'rightIndex' | 'rightMiddle' | 'rightRing' | 'rightPinky' | 'thumb';
 
@@ -8,6 +7,21 @@ export interface KeyInfo {
 }
 
 export const keyboardMapping: Record<string, KeyInfo> = {
+  // Number row
+  '`': { finger: 'leftPinky', row: 'top' },
+  '1': { finger: 'leftPinky', row: 'top' },
+  '2': { finger: 'leftRing', row: 'top' },
+  '3': { finger: 'leftMiddle', row: 'top' },
+  '4': { finger: 'leftIndex', row: 'top' },
+  '5': { finger: 'leftIndex', row: 'top' },
+  '6': { finger: 'rightIndex', row: 'top' },
+  '7': { finger: 'rightIndex', row: 'top' },
+  '8': { finger: 'rightMiddle', row: 'top' },
+  '9': { finger: 'rightRing', row: 'top' },
+  '0': { finger: 'rightPinky', row: 'top' },
+  '-': { finger: 'rightPinky', row: 'top' },
+  '=': { finger: 'rightPinky', row: 'top' },
+  
   // Top row
   'q': { finger: 'leftPinky', row: 'top' },
   'w': { finger: 'leftRing', row: 'top' },
@@ -45,7 +59,18 @@ export const keyboardMapping: Record<string, KeyInfo> = {
   '/': { finger: 'rightPinky', row: 'bottom' },
   
   // Space bar
-  ' ': { finger: 'thumb', row: 'space' }
+  ' ': { finger: 'thumb', row: 'space' },
+  
+  // Additional keys
+  'Tab': { finger: 'leftPinky', row: 'top' },
+  'Caps': { finger: 'leftPinky', row: 'home' },
+  'Shift': { finger: 'leftPinky', row: 'bottom' },
+  'Enter': { finger: 'rightPinky', row: 'home' },
+  'Backspace': { finger: 'rightPinky', row: 'top' },
+  '[': { finger: 'rightPinky', row: 'top' },
+  ']': { finger: 'rightPinky', row: 'top' },
+  '\\': { finger: 'rightPinky', row: 'top' },
+  "'": { finger: 'rightPinky', row: 'home' },
 };
 
 // Get finger name for display
@@ -82,9 +107,10 @@ export const getFingerColor = (finger: Finger): string => {
 
 // Create keyboard layout data
 export const keyboardLayout = [
-  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';'],
-  ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'],
+  ['`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 'Backspace'],
+  ['Tab', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\'],
+  ['Caps', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'", 'Enter'],
+  ['Shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 'Shift'],
   [' ']
 ];
 
@@ -105,6 +131,28 @@ export const generateWordList = (wordCount: number = 20): string => {
   }
   
   return text.trim();
+};
+
+// Generate text based on lesson type
+export const generateText = (type: string): string => {
+  switch (type) {
+    case 'keys':
+      return generateKeyDrillText();
+    case 'words':
+      return generateWordList(25);
+    case 'paragraph':
+      return generateParagraph();
+    default:
+      return generateWordList(25);
+  }
+};
+
+const generateKeyDrillText = (): string => {
+  return 'f f j j f j f j k k d d s l a ; space f j k d s l a';
+};
+
+const generateParagraph = (): string => {
+  return `The quick brown fox jumps over the lazy dog. A wizard's job is to vex chumps quickly in fog. How vexingly quick daft zebras jump! The five boxing wizards jump quickly. Pack my box with five dozen liquor jugs.`;
 };
 
 // Calculate WPM

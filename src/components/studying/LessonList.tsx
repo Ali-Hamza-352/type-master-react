@@ -10,13 +10,12 @@ const lessons = [
     title: "The Home Row",
     progress: 0,
     subLessons: [
-      { id: "1.1", title: "Touch typing basics", duration: "3-5 min" },
-      { id: "1.2", title: "New keys: Home row", duration: "3 min" },
-      { id: "1.3", title: "Understanding results", duration: "3 min" },
-      { id: "1.4", title: "Key drill", duration: "3-5 min" },
-      { id: "1.5", title: "Tip: Typing tests (Online)", duration: "3-5 min" },
-      { id: "1.6", title: "Word drill", duration: "3-5 min" },
-      { id: "1.7", title: "Paragraph drill", duration: "3-5 min" },
+      { id: "1.1", title: "Touch typing basics", type: "theory", duration: "3-5 min" },
+      { id: "1.2", title: "New keys: Home row", type: "keys", duration: "3 min" },
+      { id: "1.3", title: "Understanding results", type: "theory", duration: "3 min" },
+      { id: "1.4", title: "Key drill", type: "keys", duration: "3-5 min" },
+      { id: "1.5", title: "Word drill", type: "words", duration: "3-5 min" },
+      { id: "1.6", title: "Paragraph drill", type: "paragraph", duration: "3-5 min" },
     ],
   },
   {
@@ -24,22 +23,38 @@ const lessons = [
     title: "Keys E and I",
     progress: 0,
     subLessons: [
-      { id: "2.1", title: "New keys: E and I", duration: "3-5 min" },
-      { id: "2.2", title: "Optimal duration", duration: "3 min" },
-      { id: "2.3", title: "Word drill", duration: "3-5 min" },
-      { id: "2.4", title: "Sentence drill", duration: "3-5 min" },
-      { id: "2.5", title: "Tip: Typing Meter", duration: "3-5 min" },
-      { id: "2.6", title: "Paragraph drill", duration: "3-5 min" },
+      { id: "2.1", title: "Keys E and I", type: "keys", duration: "3-5 min" },
+      { id: "2.2", title: "Word drill", type: "words", duration: "3 min" },
+      { id: "2.3", title: "Paragraph drill", type: "paragraph", duration: "3-5 min" },
     ],
   },
-  // ... Additional lessons will be added similarly
+  {
+    id: 3,
+    title: "Keys N and T",
+    progress: 0,
+    subLessons: [
+      { id: "3.1", title: "Keys N and T", type: "keys", duration: "3-5 min" },
+      { id: "3.2", title: "Word drill", type: "words", duration: "3-5 min" },
+      { id: "3.3", title: "Paragraph drill", type: "paragraph", duration: "3-5 min" },
+    ],
+  },
+  // ... Adding more lessons with similar structure
+  {
+    id: 12,
+    title: "Speed Challenge",
+    progress: 0,
+    subLessons: [
+      { id: "12.1", title: "Final speed test", type: "paragraph", duration: "5 min" },
+      { id: "12.2", title: "Accuracy challenge", type: "paragraph", duration: "5 min" },
+    ],
+  },
 ];
 
 export function LessonList() {
   const navigate = useNavigate();
 
-  const startLesson = (lessonId: string) => {
-    navigate(`/studying/lesson/${lessonId}`);
+  const startLesson = (lessonId: string, type: string) => {
+    navigate(`/studying/lesson/${lessonId}?type=${type}`);
   };
 
   return (
@@ -63,7 +78,7 @@ export function LessonList() {
                     <div className="font-medium">{subLesson.title}</div>
                     <div className="text-sm text-gray-500">{subLesson.duration}</div>
                   </div>
-                  <Button onClick={() => startLesson(subLesson.id)} size="sm">
+                  <Button onClick={() => startLesson(subLesson.id, subLesson.type)} size="sm">
                     Start
                   </Button>
                 </div>

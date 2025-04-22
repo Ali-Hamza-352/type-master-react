@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import {
   keyboardMapping, 
   Finger, 
   generateWordList,
+  generateText,
   calculateWPM,
   calculateAccuracy
 } from '@/utils/keyboardUtils';
@@ -15,6 +15,7 @@ import { Check, X, Keyboard } from 'lucide-react';
 interface TypingInterfaceProps {
   onComplete: (stats: { accuracy: number; wpm: number; mistakes: number }) => void;
   lessonDuration?: number; // in seconds, defaults to 60
+  lessonType?: 'words' | 'characters';
 }
 
 interface Mistake {
@@ -25,7 +26,8 @@ interface Mistake {
 
 export const TypingInterface = ({ 
   onComplete, 
-  lessonDuration = 60 
+  lessonDuration = 60,
+  lessonType = 'words'
 }: TypingInterfaceProps) => {
   // Text to type and user input state
   const [text, setText] = useState("");
@@ -49,10 +51,10 @@ export const TypingInterface = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const intervalRef = useRef<number | null>(null);
 
-  // Initialize text on component mount
+  // Initialize text on component mount based on lesson type
   useEffect(() => {
-    setText(generateWordList(25));
-  }, []);
+    setText(generateText(lessonType));
+  }, [lessonType]);
   
   // Update keyboard highlight on text or position change
   useEffect(() => {
@@ -68,6 +70,14 @@ export const TypingInterface = ({
       }
     }
   }, [text, currentPosition]);
+  
+  // Start timer only when user starts typing
+  const handleFirstKeyPress = useCallback(() => {
+    if (!isActive && currentPosition === 0) {
+      setIsActive(true);
+      setStartTime(Date.now());
+    }
+  }, [isActive, currentPosition]);
   
   // Start timer when typing starts
   useEffect(() => {
@@ -102,6 +112,10 @@ export const TypingInterface = ({
   
   // Handle keypress events
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
+    if (currentPosition === 0) {
+      handleFirstKeyPress();
+    }
+
     if (!isActive) return;
     
     if (currentPosition >= text.length) {
@@ -138,7 +152,7 @@ export const TypingInterface = ({
       setCurrentPosition(prev => prev + 1);
       setIsCorrect(false);
     }
-  }, [isActive, text, currentPosition]);
+  }, [isActive, text, currentPosition, handleFirstKeyPress]);
   
   // Register and unregister keypress event listener
   useEffect(() => {

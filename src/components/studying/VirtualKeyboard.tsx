@@ -10,19 +10,26 @@ interface VirtualKeyboardProps {
 export const VirtualKeyboard = ({ currentKey, highlightedFinger }: VirtualKeyboardProps) => {
   return (
     <div className="mt-4">
-      <div className="flex flex-col items-center gap-1 max-w-3xl mx-auto">
+      <div className="flex flex-col items-center gap-1 max-w-5xl mx-auto">
         {keyboardLayout.map((row, rowIndex) => (
           <div key={rowIndex} className="flex gap-1 w-full justify-center">
             {row.map((key) => {
-              const isCurrentKey = key === currentKey.toLowerCase();
-              const keyInfo = keyboardMapping[key];
+              const isCurrentKey = key.toLowerCase() === currentKey.toLowerCase();
+              const keyInfo = keyboardMapping[key.toLowerCase()];
               const isHighlightedFinger = keyInfo && highlightedFinger === keyInfo.finger;
+              
+              let keyWidth = 'w-10';
+              if (key === 'Backspace') keyWidth = 'w-20';
+              if (key === 'Tab' || key === 'Caps') keyWidth = 'w-16';
+              if (key === 'Enter') keyWidth = 'w-20';
+              if (key === 'Shift') keyWidth = 'w-24';
+              if (key === ' ') keyWidth = 'w-64';
               
               return (
                 <div
                   key={key}
                   className={`
-                    ${key === ' ' ? 'w-64' : 'w-10'} 
+                    ${keyWidth}
                     h-10 
                     flex 
                     items-center 
@@ -35,11 +42,11 @@ export const VirtualKeyboard = ({ currentKey, highlightedFinger }: VirtualKeyboa
                     transition-all
                     duration-150
                     text-center
-                    uppercase
+                    text-sm
                     font-medium
                   `}
                 >
-                  {key === ' ' ? 'Space' : key}
+                  {key}
                 </div>
               );
             })}

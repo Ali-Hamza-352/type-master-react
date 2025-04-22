@@ -1,4 +1,3 @@
-
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Timer } from "lucide-react";
@@ -7,10 +6,14 @@ import { TypingInterface } from "@/components/studying/TypingInterface";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useLocation } from "react-router-dom";
 
 const LessonContent = () => {
   const { lessonId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
+  const searchParams = new URLSearchParams(location.search);
+  const lessonType = searchParams.get('type') || 'words';
   const [timeRemaining, setTimeRemaining] = useState(120); // 2 minutes in seconds
   const [progress, setProgress] = useState(0);
   const [showStats, setShowStats] = useState(false);
@@ -80,6 +83,7 @@ const LessonContent = () => {
             <TypingInterface 
               onComplete={handleTypingComplete} 
               lessonDuration={120}
+              lessonType={lessonType}
             />
           ) : (
             <Card>
