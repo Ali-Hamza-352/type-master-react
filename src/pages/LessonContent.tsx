@@ -1,3 +1,4 @@
+
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Timer } from "lucide-react";
@@ -7,14 +8,17 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "react-router-dom";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+type LessonType = "words" | "characters" | "keys" | "paragraph" | "theory";
 
 const LessonContent = () => {
   const { lessonId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
-  const lessonType = searchParams.get('type') || 'words';
-  const [timeRemaining, setTimeRemaining] = useState(120); // 2 minutes in seconds
+  const lessonType = searchParams.get('type') as LessonType || 'words';
+  const [timeRemaining, setTimeRemaining] = useState(300); // Default 5 minutes
   const [progress, setProgress] = useState(0);
   const [showStats, setShowStats] = useState(false);
   const [typingStats, setTypingStats] = useState({ 
@@ -22,35 +26,51 @@ const LessonContent = () => {
     wpm: 0,
     mistakes: 0 
   });
+  const [isTyping, setIsTyping] = useState(false);
+  const [selectedDuration, setSelectedDuration] = useState(3); // Default 3 minutes
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (timeRemaining > 0 && !showStats) {
-        setTimeRemaining((prev) => prev - 1);
-        // Update progress as a percentage of time elapsed
-        setProgress((120 - timeRemaining + 1) / 1.2); // 120 seconds = 100%
-      } else {
-        // Time's up, show stats
-        if (!showStats && timeRemaining <= 0) {
-          setShowStats(true);
-        }
-      }
-    }, 1000);
+    // Reset timer when duration changes
+    setTimeRemaining(selectedDuration * 60);
+  }, [selectedDuration]);
 
-    return () => clearInterval(timer);
-  }, [timeRemaining, showStats]);
+  useEffect(() => {
+    let timer: number | null = null;
+    
+    if (isTyping && timeRemaining > 0 && !showStats) {
+      timer = window.setInterval(() => {
+        setTimeRemaining((prev) => {
+          const newTime = prev - 1;
+          setProgress((selectedDuration * 60 - newTime) / (selectedDuration * 60) * 100);
+          
+          if (newTime <= 0) {
+            setShowStats(true);
+            return 0;
+          }
+          return newTime;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [timeRemaining, showStats, isTyping, selectedDuration]);
+
+  const handleTypingStart = () => {
+    setIsTyping(true);
+  };
 
   const handleTypingComplete = (stats: { accuracy: number; wpm: number; mistakes: number }) => {
     setTypingStats(stats);
     setShowStats(true);
     
-    // Save results to localStorage
     const result = {
       lessonId,
       wpm: stats.wpm,
       accuracy: stats.accuracy,
       mistakes: stats.mistakes,
-      timeSpent: formatTime(120 - timeRemaining),
+      timeSpent: formatTime(selectedDuration * 60 - timeRemaining),
       date: new Date().toISOString()
     };
     
@@ -67,8 +87,9 @@ const LessonContent = () => {
   
   const handleRetry = () => {
     setShowStats(false);
-    setTimeRemaining(120);
+    setTimeRemaining(selectedDuration * 60);
     setProgress(0);
+    setIsTyping(false);
   };
   
   const handleBackToLessons = () => {
@@ -80,11 +101,35 @@ const LessonContent = () => {
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2">
           {!showStats ? (
-            <TypingInterface 
-              onComplete={handleTypingComplete} 
-              lessonDuration={120}
-              lessonType={lessonType}
-            />
+            <>
+              {!isTyping && (
+                <Card className="mb-4">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-medium">Select Duration</h3>
+                      <Select 
+                        value={selectedDuration.toString()}
+                        onValueChange={(value) => setSelectedDuration(parseInt(value))}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="Duration" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="3">3 minutes</SelectItem>
+                          <SelectItem value="5">5 minutes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              <TypingInterface 
+                onComplete={handleTypingComplete}
+                onTypingStart={handleTypingStart}
+                lessonDuration={selectedDuration * 60}
+                lessonType={lessonType}
+              />
+            </>
           ) : (
             <Card>
               <CardHeader>
