@@ -2,8 +2,20 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity } from "lucide-react";
 import { TypingInterface } from "@/components/studying/TypingInterface";
+import { useState } from "react";
 
 const TypingMeter = () => {
+  const [hasStartedTyping, setHasStartedTyping] = useState(false);
+
+  const handleTypingStart = () => {
+    setHasStartedTyping(true);
+  };
+
+  const handleComplete = (stats: { accuracy: number; wpm: number; mistakes: number }) => {
+    console.log("Completed typing with stats:", stats);
+    // Could save to localStorage here if needed
+  };
+
   return (
     <div className="container mx-auto py-6">
       <Card>
@@ -20,8 +32,8 @@ const TypingMeter = () => {
           <TypingInterface
             lessonType="paragraph"
             lessonDuration={60}
-            onComplete={console.log}
-            onTypingStart={() => {}}
+            onComplete={handleComplete}
+            onTypingStart={handleTypingStart}
           />
         </CardContent>
       </Card>

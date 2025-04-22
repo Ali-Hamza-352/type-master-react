@@ -12,10 +12,11 @@ import {
 } from '@/utils/keyboardUtils';
 import { Check, X, Keyboard } from 'lucide-react';
 
-interface TypingInterfaceProps {
+export interface TypingInterfaceProps {
   onComplete: (stats: { accuracy: number; wpm: number; mistakes: number }) => void;
+  onTypingStart: () => void;
   lessonDuration?: number; // in seconds, defaults to 60
-  lessonType?: 'words' | 'characters';
+  lessonType?: 'words' | 'characters' | 'keys' | 'paragraph' | 'theory';
 }
 
 interface Mistake {
@@ -26,37 +27,32 @@ interface Mistake {
 
 export const TypingInterface = ({ 
   onComplete, 
+  onTypingStart,
   lessonDuration = 60,
   lessonType = 'words'
 }: TypingInterfaceProps) => {
-  // Text to type and user input state
   const [text, setText] = useState("");
   const [userInput, setUserInput] = useState("");
   const [currentPosition, setCurrentPosition] = useState(0);
   const [mistakes, setMistakes] = useState<Mistake[]>([]);
   const [isCorrect, setIsCorrect] = useState(true);
   
-  // Timer and tracking state
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [isActive, setIsActive] = useState(false);
   const [wpm, setWpm] = useState(0);
   const [accuracy, setAccuracy] = useState(100);
   const [startTime, setStartTime] = useState<number | null>(null);
   
-  // Virtual keyboard state
   const [currentKey, setCurrentKey] = useState('');
   const [highlightedFinger, setHighlightedFinger] = useState<Finger | null>(null);
   
-  // Refs
   const inputRef = useRef<HTMLInputElement>(null);
   const intervalRef = useRef<number | null>(null);
 
-  // Initialize text on component mount based on lesson type
   useEffect(() => {
     setText(generateText(lessonType));
   }, [lessonType]);
   
-  // Update keyboard highlight on text or position change
   useEffect(() => {
     if (text && currentPosition < text.length) {
       const nextKey = text[currentPosition].toLowerCase();
@@ -71,15 +67,14 @@ export const TypingInterface = ({
     }
   }, [text, currentPosition]);
   
-  // Start timer only when user starts typing
   const handleFirstKeyPress = useCallback(() => {
     if (!isActive && currentPosition === 0) {
       setIsActive(true);
       setStartTime(Date.now());
+      onTypingStart();
     }
-  }, [isActive, currentPosition]);
+  }, [isActive, currentPosition, onTypingStart]);
   
-  // Start timer when typing starts
   useEffect(() => {
     if (isActive && !intervalRef.current) {
       setStartTime(Date.now());
@@ -87,12 +82,10 @@ export const TypingInterface = ({
         setTimeElapsed(prev => {
           const newTime = prev + 1;
           
-          // Calculate live stats every second
           const correctChars = currentPosition - mistakes.length;
           setWpm(calculateWPM(correctChars, newTime));
           setAccuracy(calculateAccuracy(correctChars, currentPosition));
           
-          // Check if time is up
           if (newTime >= lessonDuration) {
             completeTyping();
           }
@@ -110,7 +103,6 @@ export const TypingInterface = ({
     };
   }, [isActive, currentPosition, mistakes.length, lessonDuration]);
   
-  // Handle keypress events
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
     if (currentPosition === 0) {
       handleFirstKeyPress();
@@ -119,7 +111,6 @@ export const TypingInterface = ({
     if (!isActive) return;
     
     if (currentPosition >= text.length) {
-      // Typing complete
       completeTyping();
       return;
     }
@@ -127,23 +118,19 @@ export const TypingInterface = ({
     const expected = text[currentPosition];
     const typed = event.key;
     
-    // Skip non-printable characters except space
     if ((typed.length !== 1 && typed !== ' ') || event.metaKey || event.ctrlKey) {
       return;
     }
     
-    // Prevent default behavior for space to avoid page scrolling
     if (typed === ' ') {
       event.preventDefault();
     }
     
     if (typed === expected) {
-      // Correct key
       setUserInput(prev => prev + typed);
       setCurrentPosition(prev => prev + 1);
       setIsCorrect(true);
     } else {
-      // Mistake
       setMistakes(prev => [
         ...prev, 
         { index: currentPosition, expected, actual: typed }
@@ -154,7 +141,6 @@ export const TypingInterface = ({
     }
   }, [isActive, text, currentPosition, handleFirstKeyPress]);
   
-  // Register and unregister keypress event listener
   useEffect(() => {
     window.addEventListener('keypress', handleKeyPress);
     return () => {
@@ -162,14 +148,12 @@ export const TypingInterface = ({
     };
   }, [handleKeyPress]);
   
-  // Focus input field when active
   useEffect(() => {
     if (isActive && inputRef.current) {
       inputRef.current.focus();
     }
   }, [isActive]);
   
-  // Start typing
   const startTyping = () => {
     setIsActive(true);
     setUserInput("");
@@ -181,7 +165,6 @@ export const TypingInterface = ({
     setStartTime(Date.now());
   };
   
-  // Complete typing
   const completeTyping = () => {
     setIsActive(false);
     if (intervalRef.current) {
@@ -189,11 +172,9 @@ export const TypingInterface = ({
       intervalRef.current = null;
     }
     
-    // Calculate final stats
     const finalAccuracy = calculateAccuracy(currentPosition - mistakes.length, currentPosition);
     const finalWpm = calculateWPM(currentPosition - mistakes.length, timeElapsed);
     
-    // Call onComplete with results
     onComplete({
       accuracy: finalAccuracy,
       wpm: finalWpm,
@@ -201,7 +182,6 @@ export const TypingInterface = ({
     });
   };
   
-  // Render highlighted text with mistakes
   const renderText = () => {
     if (!text) return null;
     
@@ -234,7 +214,6 @@ export const TypingInterface = ({
     );
   };
   
-  // Render user input with mistakes
   const renderUserInput = () => {
     return (
       <div className="text-lg text-left my-4">
@@ -260,7 +239,6 @@ export const TypingInterface = ({
     );
   };
   
-  // Render stats dashboard
   const renderStats = () => {
     return (
       <div className="flex justify-between items-center py-3 px-4 bg-gray-100 rounded-lg my-4">

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type LessonType = "words" | "characters" | "keys" | "paragraph" | "theory";
+type LessonType = 'words' | 'characters' | 'keys' | 'paragraph' | 'theory';
 
 const LessonContent = () => {
   const { lessonId } = useParams();

@@ -4,9 +4,36 @@ import { Activity } from "lucide-react";
 import { TypingInterface } from "@/components/studying/TypingInterface";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
+import { toast } from "@/components/ui/use-toast";
 
 const TypingTest = () => {
   const [duration, setDuration] = useState("1");
+  const [hasStartedTyping, setHasStartedTyping] = useState(false);
+
+  const handleTypingStart = () => {
+    setHasStartedTyping(true);
+  };
+
+  const handleComplete = (stats: { accuracy: number; wpm: number; mistakes: number }) => {
+    toast({
+      title: "Typing Test Completed",
+      description: `You achieved ${stats.wpm} WPM with ${stats.accuracy}% accuracy.`,
+    });
+    
+    // Save results to localStorage
+    const result = {
+      type: "test",
+      wpm: stats.wpm,
+      accuracy: stats.accuracy,
+      mistakes: stats.mistakes,
+      duration: parseInt(duration),
+      date: new Date().toISOString()
+    };
+    
+    const savedResults = JSON.parse(localStorage.getItem("typingResults") || "[]");
+    savedResults.push(result);
+    localStorage.setItem("typingResults", JSON.stringify(savedResults));
+  };
 
   return (
     <div className="container mx-auto py-6">
@@ -37,8 +64,8 @@ const TypingTest = () => {
           <TypingInterface
             lessonType="paragraph"
             lessonDuration={parseInt(duration) * 60}
-            onComplete={console.log}
-            onTypingStart={() => {}}
+            onComplete={handleComplete}
+            onTypingStart={handleTypingStart}
           />
         </CardContent>
       </Card>
