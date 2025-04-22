@@ -1,5 +1,4 @@
-
-import { Book, Activity, Settings, Info, Gamepad, BarChart2 } from "lucide-react";
+import { Book, Activity, Settings, Info, Gamepad, BarChart2, Mail } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +20,7 @@ const menuItems = [
   { title: "Statistics", icon: BarChart2, path: "/statistics" },
   { title: "Settings", icon: Settings, path: "/settings" },
   { title: "About", icon: Info, path: "/about" },
+  { title: "Contact Us", icon: Mail, path: "/contact" },
 ];
 
 export function AppSidebar() {
