@@ -2,13 +2,15 @@
 import { useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Timer } from "lucide-react";
-import { TimerChart } from "@/components/studying/TimerChart";
+import { TimerChart, ProgressDataPoint } from "@/components/studying/TimerChart";
 import { TypingInterface } from "@/components/studying/TypingInterface";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLessonData } from "@/hooks/useLessonData";
+import { toast } from "@/components/ui/use-toast";
 
 type LessonType = 'words' | 'characters' | 'keys' | 'paragraph' | 'theory';
 
@@ -28,6 +30,9 @@ const LessonContent = () => {
   });
   const [isTyping, setIsTyping] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState(3); // Default 3 minutes
+  const [progressData, setProgressData] = useState<ProgressDataPoint[]>([]);
+  
+  const { loading, error, currentLesson } = useLessonData(lessonId);
 
   useEffect(() => {
     // Reset timer when duration changes
@@ -61,6 +66,14 @@ const LessonContent = () => {
     setIsTyping(true);
   };
 
+  const handleAccuracyUpdate = (accuracy: number) => {
+    const timeElapsed = selectedDuration * 60 - timeRemaining;
+    setProgressData(prev => [
+      ...prev, 
+      { time: timeElapsed, accuracy }
+    ]);
+  };
+
   const handleTypingComplete = (stats: { accuracy: number; wpm: number; mistakes: number }) => {
     setTypingStats(stats);
     setShowStats(true);
@@ -77,6 +90,11 @@ const LessonContent = () => {
     const savedResults = JSON.parse(localStorage.getItem("typingResults") || "[]");
     savedResults.push(result);
     localStorage.setItem("typingResults", JSON.stringify(savedResults));
+
+    toast({
+      title: "Lesson Completed",
+      description: `You achieved ${stats.wpm} WPM with ${stats.accuracy}% accuracy.`,
+    });
   };
 
   const formatTime = (seconds: number) => {
@@ -90,11 +108,45 @@ const LessonContent = () => {
     setTimeRemaining(selectedDuration * 60);
     setProgress(0);
     setIsTyping(false);
+    setProgressData([]);
   };
   
   const handleBackToLessons = () => {
     navigate('/studying');
   };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto py-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center h-48">
+              <p>Loading lesson data...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error || !currentLesson) {
+    return (
+      <div className="container mx-auto py-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center justify-center h-48 gap-4">
+              <p className="text-red-500">
+                {error || `Lesson ${lessonId} not found`}
+              </p>
+              <Button onClick={handleBackToLessons}>
+                Back to Lessons
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-6">
@@ -104,7 +156,10 @@ const LessonContent = () => {
             <>
               {!isTyping && (
                 <Card className="mb-4">
-                  <CardContent className="pt-6">
+                  <CardHeader>
+                    <CardTitle>{currentLesson.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-medium">Select Duration</h3>
                       <Select 
@@ -126,7 +181,9 @@ const LessonContent = () => {
               <TypingInterface 
                 onComplete={handleTypingComplete}
                 onTypingStart={handleTypingStart}
+                onAccuracyUpdate={handleAccuracyUpdate}
                 lessonDuration={selectedDuration * 60}
+                lessonContent={currentLesson.content}
                 lessonType={lessonType}
               />
             </>
@@ -151,7 +208,7 @@ const LessonContent = () => {
                   </div>
                   <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
                     <span className="font-medium">Time spent</span>
-                    <span className="text-xl font-bold">{formatTime(120 - timeRemaining)}</span>
+                    <span className="text-xl font-bold">{formatTime(selectedDuration * 60 - timeRemaining)}</span>
                   </div>
                   
                   <div className="flex justify-center gap-4 mt-6">
@@ -179,7 +236,10 @@ const LessonContent = () => {
               <div className="text-4xl font-mono text-center mb-6">
                 {formatTime(timeRemaining)}
               </div>
-              <TimerChart progress={progress} />
+              <TimerChart 
+                progress={progress}
+                progressData={progressData} 
+              />
             </CardContent>
           </Card>
         </div>

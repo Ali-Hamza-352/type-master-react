@@ -1,22 +1,24 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { VirtualKeyboard } from './VirtualKeyboard';
+import { WordBox } from './WordBox';
 import { 
   keyboardMapping, 
   Finger, 
-  generateWordList,
-  generateText,
   calculateWPM,
   calculateAccuracy
 } from '@/utils/keyboardUtils';
-import { Check, X, Keyboard } from 'lucide-react';
+import { Keyboard } from 'lucide-react';
 
 export interface TypingInterfaceProps {
   onComplete: (stats: { accuracy: number; wpm: number; mistakes: number }) => void;
   onTypingStart: () => void;
+  onAccuracyUpdate?: (accuracy: number) => void;
   lessonDuration?: number; // in seconds, defaults to 60
   lessonType?: 'words' | 'characters' | 'keys' | 'paragraph' | 'theory';
+  lessonContent?: string;
 }
 
 interface Mistake {
@@ -25,17 +27,26 @@ interface Mistake {
   actual: string;
 }
 
+interface WordState {
+  word: string;
+  typedWord: string;
+  isCompleted: boolean;
+  isCorrect: boolean;
+}
+
 export const TypingInterface = ({ 
   onComplete, 
   onTypingStart,
+  onAccuracyUpdate,
   lessonDuration = 60,
-  lessonType = 'words'
+  lessonType = 'words',
+  lessonContent = ''
 }: TypingInterfaceProps) => {
-  const [text, setText] = useState("");
-  const [userInput, setUserInput] = useState("");
-  const [currentPosition, setCurrentPosition] = useState(0);
+  const [words, setWords] = useState<string[]>([]);
+  const [wordStates, setWordStates] = useState<WordState[]>([]);
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [currentInput, setCurrentInput] = useState('');
   const [mistakes, setMistakes] = useState<Mistake[]>([]);
-  const [isCorrect, setIsCorrect] = useState(true);
   
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [isActive, setIsActive] = useState(false);
@@ -48,51 +59,66 @@ export const TypingInterface = ({
   
   const inputRef = useRef<HTMLInputElement>(null);
   const intervalRef = useRef<number | null>(null);
+  const accuracyUpdateInterval = useRef<number | null>(null);
 
+  // Initialize lesson content
   useEffect(() => {
-    setText(generateText(lessonType));
-  }, [lessonType]);
-  
-  useEffect(() => {
-    if (text && currentPosition < text.length) {
-      const nextKey = text[currentPosition].toLowerCase();
-      setCurrentKey(nextKey);
+    if (lessonContent) {
+      const wordsArray = lessonContent.split(/\s+/);
+      setWords(wordsArray);
       
-      const keyInfo = keyboardMapping[nextKey];
-      if (keyInfo) {
-        setHighlightedFinger(keyInfo.finger);
+      const initialWordStates = wordsArray.map(word => ({
+        word,
+        typedWord: '',
+        isCompleted: false,
+        isCorrect: false
+      }));
+      setWordStates(initialWordStates);
+      
+      setCurrentWordIndex(0);
+      setCurrentInput('');
+    }
+  }, [lessonContent]);
+  
+  // Set current key based on next character to type
+  useEffect(() => {
+    if (words.length > 0 && currentWordIndex < words.length) {
+      const currentWord = words[currentWordIndex];
+      if (currentInput.length < currentWord.length) {
+        const nextKey = currentWord[currentInput.length].toLowerCase();
+        setCurrentKey(nextKey);
+        
+        const keyInfo = keyboardMapping[nextKey];
+        if (keyInfo) {
+          setHighlightedFinger(keyInfo.finger);
+        } else {
+          setHighlightedFinger(null);
+        }
       } else {
-        setHighlightedFinger(null);
+        // If at the end of the word, highlight space key
+        setCurrentKey(' ');
+        setHighlightedFinger('thumb');
       }
     }
-  }, [text, currentPosition]);
+  }, [words, currentWordIndex, currentInput]);
   
-  const handleFirstKeyPress = useCallback(() => {
-    if (!isActive && currentPosition === 0) {
-      setIsActive(true);
-      setStartTime(Date.now());
-      onTypingStart();
-    }
-  }, [isActive, currentPosition, onTypingStart]);
-  
+  // Create timer for typing session
   useEffect(() => {
     if (isActive && !intervalRef.current) {
       setStartTime(Date.now());
       intervalRef.current = window.setInterval(() => {
         setTimeElapsed(prev => {
           const newTime = prev + 1;
-          
-          const correctChars = currentPosition - mistakes.length;
-          setWpm(calculateWPM(correctChars, newTime));
-          setAccuracy(calculateAccuracy(correctChars, currentPosition));
-          
-          if (newTime >= lessonDuration) {
-            completeTyping();
-          }
-          
           return newTime;
         });
       }, 1000);
+      
+      // Set up interval for accuracy updates (every 5 seconds)
+      accuracyUpdateInterval.current = window.setInterval(() => {
+        if (onAccuracyUpdate) {
+          onAccuracyUpdate(accuracy);
+        }
+      }, 5000);
     }
     
     return () => {
@@ -100,47 +126,129 @@ export const TypingInterface = ({
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      if (accuracyUpdateInterval.current) {
+        clearInterval(accuracyUpdateInterval.current);
+        accuracyUpdateInterval.current = null;
+      }
     };
-  }, [isActive, currentPosition, mistakes.length, lessonDuration]);
-  
-  const handleKeyPress = useCallback((event: KeyboardEvent) => {
-    if (currentPosition === 0) {
-      handleFirstKeyPress();
-    }
+  }, [isActive, accuracy, onAccuracyUpdate]);
 
-    if (!isActive) return;
-    
-    if (currentPosition >= text.length) {
-      completeTyping();
-      return;
+  // Update typing metrics
+  useEffect(() => {
+    if (isActive) {
+      // Calculate completed characters
+      let totalChars = 0;
+      let correctChars = 0;
+      
+      wordStates.forEach(state => {
+        if (state.isCompleted) {
+          totalChars += state.word.length;
+          if (state.isCorrect) {
+            correctChars += state.word.length;
+          }
+        }
+      });
+      
+      // Add current word progress
+      if (currentWordIndex < wordStates.length) {
+        totalChars += currentInput.length;
+        for (let i = 0; i < currentInput.length; i++) {
+          if (i < words[currentWordIndex].length && currentInput[i] === words[currentWordIndex][i]) {
+            correctChars++;
+          }
+        }
+      }
+      
+      // Calculate metrics
+      const newAccuracy = calculateAccuracy(correctChars, totalChars);
+      const newWpm = calculateWPM(correctChars, timeElapsed);
+      
+      setAccuracy(newAccuracy);
+      setWpm(newWpm);
+      
+      // Check if time has exceeded lesson duration
+      if (timeElapsed >= lessonDuration) {
+        completeTyping();
+      }
     }
-    
-    const expected = text[currentPosition];
-    const typed = event.key;
-    
-    if ((typed.length !== 1 && typed !== ' ') || event.metaKey || event.ctrlKey) {
-      return;
-    }
-    
-    if (typed === ' ') {
-      event.preventDefault();
-    }
-    
-    if (typed === expected) {
-      setUserInput(prev => prev + typed);
-      setCurrentPosition(prev => prev + 1);
-      setIsCorrect(true);
-    } else {
-      setMistakes(prev => [
-        ...prev, 
-        { index: currentPosition, expected, actual: typed }
-      ]);
-      setUserInput(prev => prev + typed);
-      setCurrentPosition(prev => prev + 1);
-      setIsCorrect(false);
-    }
-  }, [isActive, text, currentPosition, handleFirstKeyPress]);
+  }, [timeElapsed, wordStates, currentWordIndex, currentInput, words, isActive, lessonDuration]);
   
+  // Handle first key press
+  const handleFirstKeyPress = useCallback(() => {
+    if (!isActive) {
+      setIsActive(true);
+      setStartTime(Date.now());
+      onTypingStart();
+    }
+  }, [isActive, onTypingStart]);
+  
+  // Handle keyboard input
+  const handleKeyPress = useCallback((event: KeyboardEvent) => {
+    if (!isActive) {
+      handleFirstKeyPress();
+      return;
+    }
+    
+    if (currentWordIndex >= words.length) {
+      // Reset to first word when reaching the end
+      setCurrentWordIndex(0);
+      setCurrentInput('');
+      return;
+    }
+    
+    const currentWord = words[currentWordIndex];
+    
+    // Handle space key to move to next word
+    if (event.key === ' ') {
+      event.preventDefault();
+      
+      // Update word state
+      setWordStates(prev => {
+        const newStates = [...prev];
+        newStates[currentWordIndex] = {
+          ...newStates[currentWordIndex],
+          typedWord: currentInput,
+          isCompleted: true,
+          isCorrect: currentInput === currentWord
+        };
+        return newStates;
+      });
+      
+      // If word is incorrect, add to mistakes
+      if (currentInput !== currentWord) {
+        setMistakes(prev => [
+          ...prev,
+          { index: currentWordIndex, expected: currentWord, actual: currentInput }
+        ]);
+      }
+      
+      // Move to next word or loop back to beginning
+      if (currentWordIndex < words.length - 1) {
+        setCurrentWordIndex(prev => prev + 1);
+      } else {
+        // Loop back to the beginning
+        setCurrentWordIndex(0);
+        
+        // Reset all word states to not completed
+        setWordStates(prev => prev.map(state => ({
+          ...state,
+          typedWord: '',
+          isCompleted: false,
+          isCorrect: false
+        })));
+      }
+      
+      setCurrentInput('');
+      return;
+    }
+    
+    // Regular key presses for typing the current word
+    if (event.key.length === 1 && !event.metaKey && !event.ctrlKey) {
+      setCurrentInput(prev => prev + event.key);
+    }
+  }, [isActive, words, currentWordIndex, currentInput, handleFirstKeyPress]);
+  
+  // Add key handlers
   useEffect(() => {
     window.addEventListener('keypress', handleKeyPress);
     return () => {
@@ -148,97 +256,81 @@ export const TypingInterface = ({
     };
   }, [handleKeyPress]);
   
+  // Focus input when active
   useEffect(() => {
     if (isActive && inputRef.current) {
       inputRef.current.focus();
     }
   }, [isActive]);
   
+  // Start typing session
   const startTyping = () => {
     setIsActive(true);
-    setUserInput("");
-    setCurrentPosition(0);
+    setCurrentWordIndex(0);
+    setCurrentInput('');
     setMistakes([]);
     setTimeElapsed(0);
     setWpm(0);
     setAccuracy(100);
     setStartTime(Date.now());
+    
+    // Reset word states
+    const resetWordStates = words.map(word => ({
+      word,
+      typedWord: '',
+      isCompleted: false,
+      isCorrect: false
+    }));
+    setWordStates(resetWordStates);
   };
   
+  // Complete typing session
   const completeTyping = () => {
     setIsActive(false);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    
-    const finalAccuracy = calculateAccuracy(currentPosition - mistakes.length, currentPosition);
-    const finalWpm = calculateWPM(currentPosition - mistakes.length, timeElapsed);
+    if (accuracyUpdateInterval.current) {
+      clearInterval(accuracyUpdateInterval.current);
+      accuracyUpdateInterval.current = null;
+    }
     
     onComplete({
-      accuracy: finalAccuracy,
-      wpm: finalWpm,
+      accuracy: accuracy,
+      wpm: wpm,
       mistakes: mistakes.length
     });
   };
   
-  const renderText = () => {
-    if (!text) return null;
+  // Render word boxes
+  const renderWordBoxes = () => {
+    // Get visible words (current word and a few before/after)
+    const visibleStart = Math.max(0, currentWordIndex - 2);
+    const visibleEnd = Math.min(words.length, currentWordIndex + 5);
+    const visibleWords = wordStates.slice(visibleStart, visibleEnd);
     
     return (
-      <div className="text-lg text-left space-y-2 my-4">
-        <div className="font-medium mb-2">Type the text below:</div>
-        <div className="p-4 bg-gray-50 rounded-lg border shadow-sm relative">
-          {text.split('').map((char, index) => {
-            const isCurrent = index === currentPosition;
-            const isTyped = index < currentPosition;
-            const mistake = mistakes.find(m => m.index === index);
-            const isCorrect = isTyped && !mistake;
-            
-            return (
-              <span 
-                key={index}
-                className={`
-                  ${isCurrent ? 'bg-blue-200 px-0.5 rounded-sm' : ''}
-                  ${isCorrect ? 'text-green-600' : ''}
-                  ${mistake ? 'text-red-600' : ''}
-                  ${isCurrent ? 'border-b-2 border-blue-500 animate-pulse' : ''}
-                `}
-              >
-                {char}
-              </span>
-            );
-          })}
-        </div>
+      <div className="flex flex-wrap gap-1 my-4 justify-center">
+        {visibleWords.map((wordState, index) => {
+          const absoluteIndex = visibleStart + index;
+          const isActive = absoluteIndex === currentWordIndex;
+          
+          return (
+            <WordBox
+              key={`${absoluteIndex}-${wordState.word}`}
+              word={wordState.word}
+              typedWord={isActive ? currentInput : wordState.typedWord}
+              isActive={isActive}
+              isCompleted={wordState.isCompleted}
+            />
+          );
+        })}
       </div>
     );
   };
   
-  const renderUserInput = () => {
-    return (
-      <div className="text-lg text-left my-4">
-        <div className="font-medium mb-2">Your typing:</div>
-        <div className="p-4 bg-white rounded-lg border shadow-sm break-all min-h-12 relative">
-          {userInput.split('').map((char, index) => {
-            const expected = text[index];
-            const isCorrect = char === expected;
-            
-            return (
-              <span 
-                key={index}
-                className={`${isCorrect ? 'text-green-600' : 'text-red-600'}`}
-              >
-                {char}
-              </span>
-            );
-          })}
-          {!isCorrect && <X className="absolute right-2 top-2 text-red-500 h-5 w-5" />}
-          {isCorrect && userInput.length > 0 && <Check className="absolute right-2 top-2 text-green-500 h-5 w-5" />}
-        </div>
-      </div>
-    );
-  };
-  
+  // Render typing stats
   const renderStats = () => {
     return (
       <div className="flex justify-between items-center py-3 px-4 bg-gray-100 rounded-lg my-4">
@@ -276,8 +368,7 @@ export const TypingInterface = ({
         {isActive ? (
           <>
             {renderStats()}
-            {renderText()}
-            {renderUserInput()}
+            {renderWordBoxes()}
             <VirtualKeyboard 
               currentKey={currentKey} 
               highlightedFinger={highlightedFinger} 
