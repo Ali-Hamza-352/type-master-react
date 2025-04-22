@@ -19,7 +19,7 @@ export const TimerChart = ({ progress, progressData }: TimerChartProps) => {
     const seconds = time % 60;
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
-  
+
   return (
     <div className="space-y-4">
       <div className="h-6 w-full bg-gray-200 rounded-full overflow-hidden">
@@ -28,7 +28,6 @@ export const TimerChart = ({ progress, progressData }: TimerChartProps) => {
           style={{ width: `${progress}%` }}
         ></div>
       </div>
-      
       <div className="h-48 mt-6">
         <h3 className="text-sm font-medium mb-2">Accuracy Over Time</h3>
         <ChartContainer
@@ -48,9 +47,13 @@ export const TimerChart = ({ progress, progressData }: TimerChartProps) => {
                 dataKey="time" 
                 tickFormatter={formatTime} 
                 label={{ value: 'Time', position: 'insideBottomRight', offset: -5 }}
+                minTickGap={10}
+                interval="preserveStartEnd"
               />
               <YAxis 
+                type="number"
                 domain={[0, 100]} 
+                allowDecimals={false}
                 label={{ value: 'Accuracy %', angle: -90, position: 'insideLeft' }}
               />
               <Tooltip 
@@ -63,6 +66,7 @@ export const TimerChart = ({ progress, progressData }: TimerChartProps) => {
                 stroke="#3b82f6" 
                 strokeWidth={2}
                 activeDot={{ r: 6 }}
+                dot={{ r: 3 }}
               />
             </LineChart>
           </ResponsiveContainer>
