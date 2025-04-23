@@ -11,6 +11,8 @@ import { useLocation } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLessonData } from "@/hooks/useLessonData";
 import { toast } from "@/components/ui/use-toast";
+import { saveTypingResult, checkCourseCompletion } from "@/utils/userProgress";
+import { useAuth } from "@/hooks/useAuth";
 
 type LessonType = 'words' | 'characters' | 'keys' | 'paragraph' | 'theory';
 
@@ -18,6 +20,7 @@ const LessonContent = () => {
   const { lessonId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const searchParams = new URLSearchParams(location.search);
   const lessonType = searchParams.get('type') as LessonType || 'words';
   const [timeRemaining, setTimeRemaining] = useState(300); // Default 5 minutes
@@ -31,6 +34,7 @@ const LessonContent = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState(3); // Default 3 minutes
   const [progressData, setProgressData] = useState<ProgressDataPoint[]>([]);
+  const [courseCompleted, setCourseCompleted] = useState(false);
   
   const { loading, error, currentLesson } = useLessonData(lessonId);
 
@@ -74,12 +78,12 @@ const LessonContent = () => {
     ]);
   };
 
-  const handleTypingComplete = (stats: { accuracy: number; wpm: number; mistakes: number }) => {
+  const handleTypingComplete = async (stats: { accuracy: number; wpm: number; mistakes: number }) => {
     setTypingStats(stats);
     setShowStats(true);
     
     const result = {
-      lessonId,
+      lessonId: lessonId || '',
       wpm: stats.wpm,
       accuracy: stats.accuracy,
       mistakes: stats.mistakes,
@@ -87,9 +91,23 @@ const LessonContent = () => {
       date: new Date().toISOString()
     };
     
-    const savedResults = JSON.parse(localStorage.getItem("typingResults") || "[]");
-    savedResults.push(result);
-    localStorage.setItem("typingResults", JSON.stringify(savedResults));
+    if (isAuthenticated) {
+      await saveTypingResult(result);
+      const isCompleted = checkCourseCompletion();
+      setCourseCompleted(isCompleted);
+      
+      if (isCompleted) {
+        toast({
+          title: "Course Completed!",
+          description: "Congratulations! You've completed the full typing course. Visit your profile to view your certificate.",
+        });
+      }
+    } else {
+      // Just save to localStorage if not authenticated
+      const savedResults = JSON.parse(localStorage.getItem("typingResults") || "[]");
+      savedResults.push(result);
+      localStorage.setItem("typingResults", JSON.stringify(savedResults));
+    }
 
     toast({
       title: "Lesson Completed",
@@ -113,6 +131,10 @@ const LessonContent = () => {
   
   const handleBackToLessons = () => {
     navigate('/studying');
+  };
+  
+  const handleViewCertificate = () => {
+    navigate('/profile');
   };
 
   if (loading) {
@@ -218,6 +240,11 @@ const LessonContent = () => {
                     <Button variant="outline" onClick={handleBackToLessons}>
                       Back to Lessons
                     </Button>
+                    {courseCompleted && (
+                      <Button variant="outline" onClick={handleViewCertificate} className="ml-2">
+                        View Certificate
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
