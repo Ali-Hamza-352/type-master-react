@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Create an axios instance with default configuration
 const axiosInstance = axios.create({
-  baseURL: process.env.API_URL || 'https://api.example.com', // Replace with your actual API URL if available
+  baseURL: import.meta.env.VITE_API_URL || 'https://api.example.com', // Using Vite's environment variable syntax
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
