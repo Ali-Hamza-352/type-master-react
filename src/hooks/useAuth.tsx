@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
+import axiosInstance, { setToken, getToken, clearTokens } from '@/utils/axiosInstance';
 
 interface User {
   id: string;
@@ -10,6 +11,7 @@ interface User {
   address?: string;
   country?: string;
   phoneNumber?: string;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -19,7 +21,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
-  updateUserProfile: (userData: Partial<User>) => void;
+  updateUserProfile: (userData: Partial<User>) => Promise<void>;
 }
 
 export interface RegisterData {
@@ -38,46 +40,59 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
+  // Check for authenticated user on component mount
   useEffect(() => {
-    // Check for user data in localStorage
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
+    const checkAuthStatus = async () => {
       try {
-        setUser(JSON.parse(storedUser));
+        const token = getToken();
+        if (token) {
+          // Get current user data
+          const response = await axiosInstance.get('/users/me');
+          if (response.data.success) {
+            setUser(response.data.data);
+          } else {
+            clearTokens();
+          }
+        }
       } catch (error) {
-        console.error('Failed to parse user data:', error);
-        localStorage.removeItem('user');
+        console.error('Authentication check failed:', error);
+        clearTokens(); // Clear potentially invalid token
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    checkAuthStatus();
   }, []);
 
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      // In a real app, you would call your API here
-      // For now, simulate a successful login
-      const mockUser: User = {
-        id: `user-${Date.now()}`,
-        username: email.split('@')[0],
-        email,
-      };
+      const response = await axiosInstance.post('/auth/login', { email, password });
       
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      localStorage.setItem('authToken', 'mock-token-' + Date.now());
-      
-      toast({
-        title: "Login successful",
-        description: "Welcome back!",
-      });
-      
-      navigate('/');
-    } catch (error) {
+      if (response.data.success) {
+        const { token, user: userData } = response.data.data;
+        setToken(token);
+        setUser(userData);
+        
+        toast({
+          title: "Login successful",
+          description: "Welcome back!",
+        });
+        
+        navigate('/');
+      } else {
+        toast({
+          title: "Login failed",
+          description: response.data.message || "Invalid credentials",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
       console.error('Login error:', error);
       toast({
         title: "Login failed",
-        description: "Please check your credentials and try again.",
+        description: error.response?.data?.message || "An error occurred during login",
         variant: "destructive",
       });
     } finally {
@@ -88,32 +103,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const register = async (userData: RegisterData) => {
     try {
       setIsLoading(true);
-      // In a real app, you would call your API here
-      // For now, simulate a successful registration
-      const mockUser: User = {
-        id: `user-${Date.now()}`,
-        username: userData.username,
-        email: userData.email,
-        address: userData.address,
-        country: userData.country,
-        phoneNumber: userData.phoneNumber
-      };
+      const response = await axiosInstance.post('/auth/register', userData);
       
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      localStorage.setItem('authToken', 'mock-token-' + Date.now());
-      
-      toast({
-        title: "Registration successful",
-        description: "Your account has been created",
-      });
-      
-      navigate('/');
-    } catch (error) {
+      if (response.data.success) {
+        const { token, user: newUser } = response.data.data;
+        setToken(token);
+        setUser(newUser);
+        
+        toast({
+          title: "Registration successful",
+          description: "Your account has been created",
+        });
+        
+        navigate('/');
+      } else {
+        toast({
+          title: "Registration failed",
+          description: response.data.message || "Could not create account",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
       console.error('Registration error:', error);
       toast({
         title: "Registration failed",
-        description: "Please try again later",
+        description: error.response?.data?.message || "An error occurred during registration",
         variant: "destructive",
       });
     } finally {
@@ -122,10 +136,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
+    clearTokens();
     setUser(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userProgress');
     toast({
       title: "Logged out",
       description: "You have been logged out successfully",
@@ -133,15 +145,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     navigate('/');
   };
 
-  const updateUserProfile = (userData: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...userData };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+  const updateUserProfile = async (userData: Partial<User>) => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      const response = await axiosInstance.put(`/users/${user.id}`, userData);
+      
+      if (response.data.success) {
+        const updatedUser = { ...user, ...response.data.data };
+        setUser(updatedUser);
+        
+        toast({
+          title: "Profile updated",
+          description: "Your profile has been updated successfully",
+        });
+        
+        return;
+      } else {
+        toast({
+          title: "Update failed",
+          description: response.data.message || "Could not update profile",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Profile update error:', error);
       toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully",
+        title: "Update failed",
+        description: error.response?.data?.message || "An error occurred during update",
+        variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 

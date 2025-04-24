@@ -1,5 +1,7 @@
 
 import axiosInstance from './axiosInstance';
+import { getUserProgress as fetchUserProgress, updateLessonProgress, saveTypingResult as saveResult } from '@/services/lessonService';
+import { getToken } from './axiosInstance';
 
 export interface TypingResult {
   lessonId?: string;
@@ -18,75 +20,96 @@ export interface UserProgress {
   lastActivity: string;
 }
 
+// Cache for user progress
+let progressCache: UserProgress | null = null;
+
 export const saveTypingResult = async (result: TypingResult) => {
-  // First, save to localStorage
-  const savedResults = JSON.parse(localStorage.getItem("typingResults") || "[]");
-  savedResults.push(result);
-  localStorage.setItem("typingResults", JSON.stringify(savedResults));
-  
-  // Update user progress
-  updateUserProgress(result);
-  
-  // Then try to save to backend (will fail gracefully if not connected)
   try {
-    if (localStorage.getItem('authToken')) {
-      await axiosInstance.post('/typing-results', result);
+    // Only proceed if user is authenticated
+    if (getToken()) {
+      await saveResult(result);
+      
+      // Also mark sub-lesson as completed if applicable
+      if (result.lessonId) {
+        const lessonParts = result.lessonId.split('.');
+        if (lessonParts.length >= 2) {
+          const lessonId = parseInt(lessonParts[0]);
+          await updateLessonProgress({
+            lessonId,
+            subLessonId: result.lessonId,
+            completed: true
+          });
+        }
+      }
+      
+      // Update local cache
+      if (progressCache) {
+        progressCache.results.push(result);
+        
+        // Add to completed lessons if applicable
+        if (result.lessonId && !progressCache.completedLessons.includes(result.lessonId)) {
+          progressCache.completedLessons.push(result.lessonId);
+        }
+        
+        // Update last activity
+        progressCache.lastActivity = new Date().toISOString();
+      }
+      
+      return true;
     }
+    return false;
   } catch (error) {
-    console.error('Failed to save typing result to server:', error);
+    console.error('Failed to save typing result:', error);
+    return false;
   }
 };
 
-export const updateUserProgress = (result: TypingResult) => {
-  const progressData: UserProgress = JSON.parse(localStorage.getItem("userProgress") || 
-    JSON.stringify({
+export const getUserProgress = async (): Promise<UserProgress> => {
+  try {
+    // If we have cached data and user is logged in, return it
+    if (progressCache && getToken()) {
+      return progressCache;
+    }
+    
+    // Try to get from API if user is logged in
+    if (getToken()) {
+      try {
+        const progress = await fetchUserProgress();
+        progressCache = progress;
+        return progress;
+      } catch (error) {
+        console.error("Failed to fetch user progress:", error);
+      }
+    }
+    
+    // Default empty progress
+    return {
       completedLessons: [],
       results: [],
       lastActivity: new Date().toISOString()
-    })
-  );
-  
-  // Add to results
-  progressData.results.push(result);
-  
-  // Add to completed lessons if applicable
-  if (result.lessonId && !progressData.completedLessons.includes(result.lessonId)) {
-    progressData.completedLessons.push(result.lessonId);
+    };
+  } catch (error) {
+    console.error("Error in getUserProgress:", error);
+    return {
+      completedLessons: [],
+      results: [],
+      lastActivity: new Date().toISOString()
+    };
   }
-  
-  // Update last activity
-  progressData.lastActivity = new Date().toISOString();
-  
-  // Save back to localStorage
-  localStorage.setItem("userProgress", JSON.stringify(progressData));
-  
-  return progressData;
-};
-
-export const getUserProgress = (): UserProgress => {
-  return JSON.parse(localStorage.getItem("userProgress") || 
-    JSON.stringify({
-      completedLessons: [],
-      results: [],
-      lastActivity: new Date().toISOString()
-    })
-  );
 };
 
 export const syncUserProgress = async () => {
-  try {
-    if (localStorage.getItem('authToken')) {
-      const progressData = getUserProgress();
-      await axiosInstance.post('/sync-progress', progressData);
-    }
-  } catch (error) {
-    console.error('Failed to sync user progress with server:', error);
-  }
+  // This is handled automatically by the API now
+  return true;
 };
 
-export const checkCourseCompletion = (): boolean => {
-  const progress = getUserProgress();
-  // Define what constitutes course completion (e.g., completing all 12 lessons)
-  // This is just a simple example - adjust based on your app's requirements
-  return progress.completedLessons.length >= 12;
+export const checkCourseCompletion = async (): Promise<boolean> => {
+  try {
+    const progress = await getUserProgress();
+    // Define what constitutes course completion (e.g., completing all 12 lessons)
+    return progress.completedLessons.length >= 12;
+  } catch (error) {
+    console.error("Error checking course completion:", error);
+    return false;
+  }
 };

@@ -1,21 +1,13 @@
 
 import { useState, useEffect } from 'react';
-
-export interface SubLesson {
-  id: string;
-  title: string;
-  content: string;
-}
-
-export interface Lesson {
-  id: number;
-  title: string;
-  subLessons: SubLesson[];
-}
+import { getAllLessons } from '@/services/lessonService';
+import { SubLesson, Lesson } from '@/services/lessonService';
 
 export interface LessonData {
   lessons: Lesson[];
 }
+
+export { SubLesson, Lesson };
 
 export const useLessonData = (lessonId?: string) => {
   const [loading, setLoading] = useState(true);
@@ -26,11 +18,8 @@ export const useLessonData = (lessonId?: string) => {
   useEffect(() => {
     const fetchLessonData = async () => {
       try {
-        const response = await fetch('/src/assets/lessonData.json');
-        if (!response.ok) {
-          throw new Error('Failed to load lesson data');
-        }
-        const data: LessonData = await response.json();
+        const lessons = await getAllLessons();
+        const data: LessonData = { lessons };
         setLessonData(data);
 
         if (lessonId) {
@@ -49,6 +38,27 @@ export const useLessonData = (lessonId?: string) => {
         console.error('Error loading lesson data:', err);
         setError('Failed to load lesson data. Please try again.');
         setLoading(false);
+        
+        // Fallback to local file if API fails
+        try {
+          const response = await fetch('/src/assets/lessonData.json');
+          if (response.ok) {
+            const data: LessonData = await response.json();
+            setLessonData(data);
+            
+            if (lessonId) {
+              for (const lesson of data.lessons) {
+                const subLesson = lesson.subLessons.find(sub => sub.id === lessonId);
+                if (subLesson) {
+                  setCurrentLesson(subLesson);
+                  break;
+                }
+              }
+            }
+          }
+        } catch (fallbackError) {
+          console.error('Fallback lesson data loading failed:', fallbackError);
+        }
       }
     };
 
