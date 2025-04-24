@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (token) {
           // Get current user data
           const response = await axiosInstance.get('/users/me');
-          if (response.data.success) {
+          if (response.data && response.data.success) {
             setUser(response.data.data);
           } else {
             clearTokens();
@@ -70,21 +70,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       const response = await axiosInstance.post('/auth/login', { email, password });
       
-      if (response.data.success) {
+      console.log("Login response:", response.data);
+      
+      if (response.data && response.data.success) {
         const { token, user: userData } = response.data.data;
-        setToken(token);
-        setUser(userData);
         
-        toast({
-          title: "Login successful",
-          description: "Welcome back!",
-        });
+        console.log("Login successful, setting token and user data:", { token, userData });
         
-        navigate('/');
+        if (token && userData) {
+          setToken(token);
+          setUser(userData);
+          
+          toast({
+            title: "Login successful",
+            description: "Welcome back!",
+          });
+          
+          navigate('/');
+        } else {
+          console.error("Missing token or user data in response");
+          toast({
+            title: "Login failed",
+            description: "Invalid response format from server",
+            variant: "destructive",
+          });
+        }
       } else {
+        console.error("Login failed:", response.data?.message);
         toast({
           title: "Login failed",
-          description: response.data.message || "Invalid credentials",
+          description: response.data?.message || "Invalid credentials",
           variant: "destructive",
         });
       }
@@ -105,21 +120,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       const response = await axiosInstance.post('/auth/register', userData);
       
-      if (response.data.success) {
+      console.log("Registration response:", response.data);
+      
+      if (response.data && response.data.success) {
         const { token, user: newUser } = response.data.data;
-        setToken(token);
-        setUser(newUser);
         
-        toast({
-          title: "Registration successful",
-          description: "Your account has been created",
-        });
+        console.log("Registration successful, setting token and user data:", { token, newUser });
         
-        navigate('/');
+        if (token && newUser) {
+          setToken(token);
+          setUser(newUser);
+          
+          toast({
+            title: "Registration successful",
+            description: "Your account has been created",
+          });
+          
+          navigate('/');
+        } else {
+          console.error("Missing token or user data in response");
+          toast({
+            title: "Registration failed",
+            description: "Invalid response format from server",
+            variant: "destructive",
+          });
+        }
       } else {
+        console.error("Registration failed:", response.data?.message);
         toast({
           title: "Registration failed",
-          description: response.data.message || "Could not create account",
+          description: response.data?.message || "Could not create account",
           variant: "destructive",
         });
       }
@@ -152,7 +182,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       const response = await axiosInstance.put(`/users/${user.id}`, userData);
       
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         const updatedUser = { ...user, ...response.data.data };
         setUser(updatedUser);
         
@@ -165,7 +195,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         toast({
           title: "Update failed",
-          description: response.data.message || "Could not update profile",
+          description: response.data?.message || "Could not update profile",
           variant: "destructive",
         });
       }

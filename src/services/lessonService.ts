@@ -32,12 +32,15 @@ export interface UserProgress {
 export const getAllLessons = async (): Promise<Lesson[]> => {
   try {
     const response = await axiosInstance.get('/lessons');
-    if (response.data.success) {
-      return response.data.data;
+    console.log("getAllLessons response:", response.data);
+    
+    if (response.data && response.data.success) {
+      return response.data.data || [];
     }
-    throw new Error(response.data.message || "Failed to fetch lessons");
-  } catch (error) {
+    throw new Error(response.data?.message || "Failed to fetch lessons");
+  } catch (error: any) {
     console.error("Error fetching lessons:", error);
+    console.error("Error response:", error.response?.data);
     throw error;
   }
 };
@@ -46,12 +49,19 @@ export const getAllLessons = async (): Promise<Lesson[]> => {
 export const getUserProgress = async (): Promise<UserProgress> => {
   try {
     const response = await axiosInstance.get('/lessons/progress');
-    if (response.data.success) {
-      return response.data.data;
+    console.log("getUserProgress response:", response.data);
+    
+    if (response.data && response.data.success) {
+      return response.data.data || { 
+        completedLessons: [],
+        results: [],
+        lastActivity: new Date().toISOString()
+      };
     }
-    throw new Error(response.data.message || "Failed to fetch user progress");
-  } catch (error) {
+    throw new Error(response.data?.message || "Failed to fetch user progress");
+  } catch (error: any) {
     console.error("Error fetching user progress:", error);
+    console.error("Error response:", error.response?.data);
     throw error;
   }
 };
@@ -60,11 +70,14 @@ export const getUserProgress = async (): Promise<UserProgress> => {
 export const updateLessonProgress = async (progressData: ProgressUpdate): Promise<void> => {
   try {
     const response = await axiosInstance.post('/lessons/progress/update', progressData);
-    if (!response.data.success) {
-      throw new Error(response.data.message || "Failed to update progress");
+    console.log("updateLessonProgress response:", response.data);
+    
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || "Failed to update progress");
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating lesson progress:", error);
+    console.error("Error response:", error.response?.data);
     throw error;
   }
 };
@@ -73,11 +86,14 @@ export const updateLessonProgress = async (progressData: ProgressUpdate): Promis
 export const resetUserProgress = async (): Promise<void> => {
   try {
     const response = await axiosInstance.post('/lessons/progress/reset');
-    if (!response.data.success) {
-      throw new Error(response.data.message || "Failed to reset progress");
+    console.log("resetUserProgress response:", response.data);
+    
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || "Failed to reset progress");
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error resetting user progress:", error);
+    console.error("Error response:", error.response?.data);
     throw error;
   }
 };
@@ -85,9 +101,15 @@ export const resetUserProgress = async (): Promise<void> => {
 // Save typing result
 export const saveTypingResult = async (result: any): Promise<void> => {
   try {
-    await axiosInstance.post('/typing-results', result);
-  } catch (error) {
+    const response = await axiosInstance.post('/typing-results', result);
+    console.log("saveTypingResult response:", response.data);
+    
+    if (!response.data || !response.data.success) {
+      throw new Error(response.data?.message || "Failed to save typing result");
+    }
+  } catch (error: any) {
     console.error('Failed to save typing result:', error);
+    console.error("Error response:", error.response?.data);
     throw error;
   }
 };

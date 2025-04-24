@@ -18,9 +18,12 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(`Making ${config.method?.toUpperCase()} request to ${config.url}`, 
+      config.data ? `with data: ${JSON.stringify(config.data)}` : '');
     return config;
   },
   (error) => {
+    console.error("Request interceptor error:", error);
     return Promise.reject(error);
   }
 );
@@ -28,11 +31,19 @@ axiosInstance.interceptors.request.use(
 // Add response interceptor to handle token expiration
 axiosInstance.interceptors.response.use(
   (response) => {
+    console.log(`Response from ${response.config.url}:`, response.data);
     return response;
   },
   async (error) => {
+    console.error("Response error:", error);
+    if (error.response) {
+      console.error("Error response data:", error.response.data);
+      console.error("Error response status:", error.response.status);
+    }
+    
     if (error.response && error.response.status === 401) {
       // Clear tokens on authentication error
+      console.warn("Unauthorized access detected, clearing tokens");
       clearTokens();
       window.location.href = '/login'; // Redirect to login page
     }
@@ -42,15 +53,22 @@ axiosInstance.interceptors.response.use(
 
 // Token management functions
 export const setToken = (token: string) => {
-  const decodedToken: any = jwtDecode(token);
-  
-  // Set expiration to 7 days from now
-  const expiryDate = new Date();
-  expiryDate.setDate(expiryDate.getDate() + 7);
-  
-  // Create cookie string
-  const cookieValue = `authToken=${token}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Strict`;
-  document.cookie = cookieValue;
+  try {
+    const decodedToken: any = jwtDecode(token);
+    console.log("Decoded token:", decodedToken);
+    
+    // Set expiration to 7 days from now
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 7);
+    
+    // Create cookie string
+    const cookieValue = `authToken=${token}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Strict`;
+    document.cookie = cookieValue;
+    console.log("Token set successfully, expires:", expiryDate.toUTCString());
+  } catch (error) {
+    console.error("Failed to set token:", error);
+    throw error;
+  }
 };
 
 export const getToken = (): string | null => {
@@ -66,12 +84,14 @@ export const getToken = (): string | null => {
         const currentTime = Date.now() / 1000;
         
         if (decoded.exp && decoded.exp < currentTime) {
+          console.warn("Token expired, clearing");
           clearTokens(); // Token expired
           return null;
         }
         
         return token;
       } catch (error) {
+        console.error("Invalid token found in cookie, clearing");
         clearTokens();
         return null;
       }
@@ -82,6 +102,7 @@ export const getToken = (): string | null => {
 
 export const clearTokens = () => {
   document.cookie = 'authToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  console.log("Tokens cleared");
 };
 
 export default axiosInstance;
