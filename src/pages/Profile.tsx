@@ -7,12 +7,38 @@ import { useNavigate } from "react-router-dom";
 import { Edit, Award } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { generateCertificateHTML, downloadCertificate, CertificateData } from "@/utils/certificateGenerator";
+import { useState, useEffect } from "react";
+import { UserProgress } from "@/utils/userProgress";
 
 const Profile = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const userProgress = getUserProgress();
-  const courseCompleted = checkCourseCompletion();
+  const [userProgress, setUserProgress] = useState<UserProgress>({
+    completedLessons: [],
+    results: [],
+    lastActivity: new Date().toISOString()
+  });
+  const [courseCompleted, setCourseCompleted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Fetch user progress when component mounts
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const progress = await getUserProgress();
+        setUserProgress(progress);
+        
+        const isCompleted = await checkCourseCompletion();
+        setCourseCompleted(isCompleted);
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
   
   const avgWPM = userProgress.results.length
     ? Math.round(userProgress.results.reduce((acc, curr) => acc + curr.wpm, 0) / userProgress.results.length)
@@ -41,6 +67,7 @@ const Profile = () => {
   };
   
   if (!user) return null;
+  if (isLoading) return <div className="container mx-auto py-6">Loading user data...</div>;
   
   return (
     <div className="container mx-auto py-6 space-y-6">

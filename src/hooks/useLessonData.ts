@@ -1,13 +1,14 @@
 
 import { useState, useEffect } from 'react';
 import { getAllLessons } from '@/services/lessonService';
-import { SubLesson, Lesson } from '@/services/lessonService';
+import type { SubLesson, Lesson } from '@/services/lessonService';
 
 export interface LessonData {
   lessons: Lesson[];
 }
 
-export { SubLesson, Lesson };
+// Re-export types using 'export type' syntax for isolatedModules compatibility
+export type { SubLesson, Lesson };
 
 export const useLessonData = (lessonId?: string) => {
   const [loading, setLoading] = useState(true);

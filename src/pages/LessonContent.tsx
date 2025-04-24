@@ -93,15 +93,19 @@ const LessonContent = () => {
     
     if (isAuthenticated) {
       await saveTypingResult(result);
-      const isCompleted = checkCourseCompletion();
-      setCourseCompleted(isCompleted);
-      
-      if (isCompleted) {
-        toast({
-          title: "Course Completed!",
-          description: "Congratulations! You've completed the full typing course. Visit your profile to view your certificate.",
-        });
-      }
+      // Fix: Handle the promise properly by using then/catch
+      checkCourseCompletion().then(isCompleted => {
+        setCourseCompleted(isCompleted);
+        
+        if (isCompleted) {
+          toast({
+            title: "Course Completed!",
+            description: "Congratulations! You've completed the full typing course. Visit your profile to view your certificate.",
+          });
+        }
+      }).catch(error => {
+        console.error("Error checking course completion:", error);
+      });
     } else {
       // Just save to localStorage if not authenticated
       const savedResults = JSON.parse(localStorage.getItem("typingResults") || "[]");
