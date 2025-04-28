@@ -72,8 +72,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       console.log("Login response:", response.data);
       
+      // Handle the direct response format without nested data object
       if (response.data && response.data.success) {
-        const { token, user: userData } = response.data.data;
+        // Extract token and user directly from response.data
+        const { token, user: userData } = response.data;
         
         console.log("Login successful, setting token and user data:", { token, userData });
         
@@ -122,8 +124,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       console.log("Registration response:", response.data);
       
+      // Handle the direct response format without nested data object
       if (response.data && response.data.success) {
-        const { token, user: newUser } = response.data.data;
+        // Extract token and user directly from response.data
+        const { token, user: newUser } = response.data;
         
         console.log("Registration successful, setting token and user data:", { token, newUser });
         
